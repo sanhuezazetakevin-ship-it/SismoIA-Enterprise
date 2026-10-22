@@ -1,0 +1,13 @@
+import { Activity, Bell, ChevronRight, Radio, Waves, ArrowDownToLine } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { summary, demoEvents } from './demo';
+import { DemoChart } from '../components/DemoChart';
+import { MapPreview } from '../components/MapPreview';
+const icons = [Activity, Waves, ArrowDownToLine, Bell];
+export function Dashboard(){return <>
+  <div className="page-heading"><div><div className="eyebrow">VISTA GENERAL / PERÚ</div><h1>Actividad sísmica</h1><p>Panel demostrativo. Ningún valor representa información sísmica en tiempo real.</p></div><span className="period-chip">Últimos 7 días · Demo</span></div>
+  <div className="kpi-grid">{summary.map((item,i)=>{const Icon=icons[i];return <article className="kpi-card" key={item.label}><div className="kpi-top"><span>{item.label}</span><span className="kpi-icon"><Icon size={18}/></span></div><strong>{item.value}</strong><small>{item.description}</small></article>})}</div>
+  <div className="content-grid"><section className="panel map-panel"><div className="panel-heading"><div><h2>Distribución geográfica</h2><p>Representación conceptual, no georreferenciada</p></div><span className="mini-chip">Perú</span></div><MapPreview/><div className="panel-footer"><span>Conexiones IGP y USGS pendientes</span><Link to="/app/mapa">Explorar mapa <ChevronRight size={15}/></Link></div></section>
+  <section className="panel events-panel"><div className="panel-heading"><div><h2>Eventos recientes</h2><p>Registros ficticios de ejemplo</p></div><Radio size={18} className="muted-icon"/></div><div className="events-list">{demoEvents.map(e=><div className="event-row" key={e.place}><span className="magnitude">{e.magnitude}</span><span><strong>{e.place}</strong><small>{e.date} · {e.depth}</small></span><ChevronRight size={16}/></div>)}</div><div className="panel-footer"><Link to="/app/eventos">Ver catálogo <ChevronRight size={15}/></Link></div></section></div>
+  <div className="content-grid"><section className="panel chart-panel"><div className="panel-heading"><div><h2>Tendencia de actividad</h2><p>Serie temporal ficticia, sin valor científico</p></div><span className="mini-chip">7 días</span></div><DemoChart/></section><section className="panel alerts-panel"><div className="panel-heading"><div><h2>Centro de alertas</h2><p>Aprobación humana antes de envíos externos</p></div><Bell size={18} className="muted-icon"/></div><div className="notice"><strong>3 avisos de demostración</strong><p>Las notificaciones externas y los modelos ML no están habilitados en esta fase.</p></div><div className="source-row"><span>IGP / CENSIS</span><span>No conectado</span></div><div className="source-row"><span>USGS</span><span>No conectado</span></div></section></div>
+</>}

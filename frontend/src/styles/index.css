@@ -11,3 +11,55 @@
 @media(max-width:930px){.hero{grid-template-columns:1fr;gap:40px;padding-block:50px 85px}.hero-preview{width:min(570px,100%);margin:auto}.feature-grid{grid-template-columns:repeat(2,1fr)}.sidebar{padding-inline:9px}.app-shell{grid-template-columns:62px minmax(0,1fr)}.sidebar .brand>span:last-child,.sidebar-heading,.side-link span,.sidebar-foot{display:none}.sidebar .brand{justify-content:center}.side-link{justify-content:center;padding:13px}.kpi-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:680px){.container{width:calc(100% - 32px)}.header-links{gap:9px}.header-links>a:not(.button){display:none}.theme-label{display:none}.hero h1{letter-spacing:-1.5px}.feature-grid{grid-template-columns:1fr}.method-section{grid-template-columns:1fr;gap:25px;padding-block:65px}.cta-inner{flex-direction:column;align-items:flex-start}.public-footer{flex-direction:column}.app-top{padding:0 12px;height:70px}.app-top .eyebrow,.demo-tag{display:none}.app-content{padding:15px}.content-grid{grid-template-columns:1fr}.kpi-grid{gap:8px}.kpi-card strong{font-size:25px}.page-heading{align-items:flex-start;flex-direction:column}.period-chip{align-self:flex-start}.panel-heading{padding:16px}.events-list{padding-inline:16px}.login-card{padding:26px}.preview-map{height:250px}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+
+/* Fase 4: paneles descriptivos */
+.sismo-filters{display:flex;gap:16px;flex-wrap:wrap;margin:16px 0 22px}.sismo-filters label{display:grid;gap:7px;font-size:13px;color:var(--muted)}.sismo-filters input,.sismo-filters select{padding:10px;border:1px solid var(--line);border-radius:8px;color:var(--fg);background:var(--surface)}.sismo-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:15px;margin:20px 0}.sismo-metrics .kpi-card{min-height:115px;padding:20px;display:flex;flex-direction:column;gap:12px}.sismo-metrics strong{font-size:29px}.sismo-metrics span{color:var(--muted);font-size:13px}.sismo-charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.sismo-chart{padding:20px;min-width:0}.sismo-chart h2{font-size:17px;margin:0 0 16px}.sismo-note{font-size:12px;line-height:1.6;color:var(--muted);margin:16px 0}.sismo-map-layout{display:grid;grid-template-columns:minmax(0,2fr) minmax(230px,1fr);gap:18px;align-items:start}.sismo-map{padding:15px;text-align:center}.sismo-map > svg{width:100%;max-width:650px;max-height:68vh}.sismo-map circle{cursor:pointer;outline-offset:3px}.sismo-map circle:focus{outline:2px solid #a33745}.sismo-detail{padding:22px}.sismo-detail h2{margin:0 0 20px}.sismo-detail p{line-height:1.7}.sismo-shortcuts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.sismo-shortcuts a{padding:22px;color:var(--text);text-decoration:none}.sismo-shortcuts a h2{margin:14px 0 8px;font-size:17px}.sismo-shortcuts a p{color:var(--muted);font-size:13px}@media(max-width:960px){.sismo-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.sismo-charts,.sismo-map-layout{grid-template-columns:1fr}}@media(max-width:620px){.sismo-metrics,.sismo-shortcuts{grid-template-columns:1fr}}
+
+/* Mapa Leaflet geográfico: altura definida para que aparezcan las teselas, adaptable a móviles. */
+.sismo-leaflet-map{width:100%;height:520px;min-height:340px;border-radius:12px;overflow:hidden;background:#e6e9e9}
+.sismo-leaflet-container{width:100%;min-width:0;position:relative}
+.sismo-map-legend{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 0;font-size:.8rem}
+.sismo-dot{display:inline-block;height:12px;width:12px;border-radius:50%;border:1px solid #fff}
+.sismo-dot-low{background:#e69b63}.sismo-dot-high{background:#a33745}
+@media(max-width:700px){.sismo-leaflet-map{height:370px}}
+
+/* SismoIA: panel geográfico profesional, accesible y con diagnóstico de carga */
+.sismo-map{text-align:left}
+.sismo-map .sismo-leaflet-map{height:clamp(410px,60vh,690px);max-height:none;min-height:410px;border-radius:0;background:#e6ecea}
+.sismo-map-stage{position:relative;overflow:hidden;border-radius:14px;border:1px solid var(--line)}
+.sismo-map-toolbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin:0 0 12px}
+.sismo-map-toolbar>div{display:flex;flex-direction:column;gap:3px}
+.sismo-map-toolbar strong{font-size:16px;color:var(--fg)}
+.sismo-map-toolbar span{font-size:12px;color:var(--muted)}
+.sismo-map-toolbar button,.sismo-map-overlay button{cursor:pointer;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:8px 12px;color:var(--fg);font:inherit;font-size:13px}
+.sismo-map-toolbar button:focus-visible,.sismo-map-events button:focus-visible{outline:2px solid #a33745;outline-offset:2px}
+.sismo-map-overlay{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:600;max-width:min(90%,450px);background:var(--surface);color:var(--fg);border:1px solid var(--line);box-shadow:0 8px 30px #0002;border-radius:12px;padding:16px;text-align:center}
+.sismo-map-failure{display:flex;flex-direction:column;gap:10px}
+.sismo-map-legend{justify-content:flex-start;border-bottom:1px solid var(--line)}
+.sismo-dot-mid{background:#bf5f4c}.sismo-dot-high{background:#7c2438}.sismo-dot-low{background:#e7a568}
+.sismo-map-attribution{margin-left:auto;color:var(--muted);font-size:11px}
+.sismo-map-events{display:grid;gap:8px;padding:12px 0}
+.sismo-map-events button{text-align:left;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--fg);cursor:pointer}
+.sismo-leaflet-map .leaflet-control-container{font-family:inherit}
+@media(max-width:700px){.sismo-map .sismo-leaflet-map{height:440px;min-height:360px}.sismo-map-attribution{flex-basis:100%;margin-left:0}}
+
+/* Diagnóstico visible de datos: mapa base ≠ marcadores USGS. */
+.sismo-map-diagnostics{padding:12px 15px;margin:12px 0;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--fg);font-size:12px;line-height:1.5}
+.sismo-map-empty-banner{padding:15px;margin:12px 0;color:var(--fg);border:1px dashed var(--line);border-radius:10px;background:var(--surface)}
+.sismo-map-empty{line-height:1.6}
+.sismo-leaflet-map .leaflet-overlay-pane{z-index:400;pointer-events:auto}
+.sismo-leaflet-map .leaflet-interactive{cursor:pointer;stroke:#fff;stroke-width:3px}
+.sismo-map-events{max-height:190px;overflow:auto;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));align-items:start}
+
+/* Epicentros geográficos: marcadores HTML posicionados por Leaflet sobre coordenadas USGS.
+   Al no utilizar SVG, los estilos antiguos de mapas decorativos no los distorsionan. */
+.sismo-leaflet-map .sismo-epicenter-icon{background:transparent;border:0;overflow:visible}
+.sismo-leaflet-map .sismo-epicenter-dot{display:flex;align-items:center;justify-content:center;width:var(--point-size);height:var(--point-size);border:3px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,.5),0 0 0 3px rgba(255,255,255,.24);transition:transform .15s ease,box-shadow .15s ease;cursor:pointer}
+.sismo-leaflet-map .sismo-epicenter-dot:hover{transform:scale(1.2);box-shadow:0 3px 12px rgba(0,0,0,.55),0 0 0 5px rgba(255,255,255,.3)}
+.sismo-leaflet-map .sismo-epicenter-low{background:#e7a568}
+.sismo-leaflet-map .sismo-epicenter-mid{background:#bf5f4c}
+.sismo-leaflet-map .sismo-epicenter-high{background:#7c2438}
+.sismo-leaflet-map .sismo-epicenter-center{height:25%;width:25%;background:#fff;border-radius:50%;opacity:.95}
+.sismo-leaflet-map .leaflet-marker-pane{z-index:600}
+.sismo-leaflet-map .leaflet-marker-icon:focus-visible{outline:3px solid #246e86;outline-offset:4px;border-radius:50%}
+@media(prefers-reduced-motion:reduce){.sismo-leaflet-map .sismo-epicenter-dot{transition:none}}

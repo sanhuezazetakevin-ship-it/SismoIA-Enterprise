@@ -1,0 +1,7 @@
+/* Fuente única de tokens. Los nombres históricos son alias para compatibilidad. */
+:root{
+ --primary:#0F4C5C;--accent:#7A1F3D;--bg:#F6F8FA;--surface:#FFFFFF;--border:#D9E0E6;--text:#1B2430;--text-muted:#5B6776;--error:#B42318;
+ --primary-hover:#0B3A47;--sidebar:#103847;--fg:var(--text);--muted:var(--text-muted);--line:var(--border);--secondary:var(--accent);--highlight:#E7EFF2;--surface-muted:#EDF2F5;--focus:#0F4C5C;--shadow:0 2px 8px rgba(14,38,48,.045);
+ --magnitude-light:#B4D8E6;--magnitude-medium:#5695B6;--magnitude-dark:#164D75;
+}
+:root[data-theme=dark]{--primary:#88C8D3;--accent:#D49AAE;--bg:#101C26;--surface:#172B38;--border:#39515F;--text:#EFF5F7;--text-muted:#C3D1DA;--error:#FCA5A5;--primary-hover:#B0E0E7;--sidebar:#0B1822;--fg:var(--text);--muted:var(--text-muted);--line:var(--border);--secondary:var(--accent);--highlight:#294454;--surface-muted:#243B49;--focus:#A3DCE6;--shadow:0 2px 8px rgba(0,0,0,.12)}

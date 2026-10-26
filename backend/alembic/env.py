@@ -3,7 +3,7 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 from app.config import settings
 from app.db import Base
-from app import models, auth_models  # noqa: F401
+from app import models, auth_models, alert_models, monitoring_models, snapshot_models, ml_registry_models, report_models  # noqa: F401
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.database_url.replace("%", "%%"))

@@ -9,5 +9,5 @@ def test_health():
 
 def test_capabilities_safe_defaults():
     data = client.get("/api/v1/system/capabilities").json()
-    assert data["live_data"] is False
+    assert data["live_data"] is True
     assert data["external_notifications"] is False

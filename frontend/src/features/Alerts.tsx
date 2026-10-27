@@ -1,77 +1,731 @@
-import {useEffect,useRef,useState} from 'react';
-import {authorized} from '../services/auth';
-import {useAuth} from '../app/auth';
-import {StatusBadge} from '../components/StatusBadge';
-type AlertRule={id:string;name:string;min_magnitude:number;min_lat:number|null;max_lat:number|null;min_lon:number|null;max_lon:number|null;cooldown_minutes:number;enabled:boolean};
-type MonitorRun={id:string;started_at:string;status:string;examined:number;created:number;duplicates:number};
-type MonitorStatus={enabled:boolean;automatic_send:boolean};
-type Alert={id:string;external_event_id:string;title:string;body:string;status:string;created_at:string;created_by:string;approved_by:string|null};
-export function Alerts(){const {user}=useAuth();const dialogRef=useRef<HTMLDivElement|null>(null);const returnFocusRef=useRef<HTMLElement|null>(null);const [decision,setDecision]=useState<{alert:Alert;action:'approve'|'send'|'reject'|'cancel'}|null>(null);const [reason,setReason]=useState('');const [evidence,setEvidence]=useState<any>(null);const [simulation,setSimulation]=useState<any>(null);const [snapshotId,setSnapshotId]=useState('');const [selectedRule,setSelectedRule]=useState('');const [items,setItems]=useState<Alert[]>([]);const [title,setTitle]=useState('');const [body,setBody]=useState('');const [eventId,setEventId]=useState('');const [message,setMessage]=useState('');const [busy,setBusy]=useState(false);const [enabled,setEnabled]=useState(false);const [monitor,setMonitor]=useState<MonitorStatus|null>(null);const [runs,setRuns]=useState<MonitorRun[]>([]);const [rules,setRules]=useState<AlertRule[]>([]);const [ruleName,setRuleName]=useState('Perú — observaciones');const [ruleMag,setRuleMag]=useState('4.5');const [ruleCooldown,setRuleCooldown]=useState('60');const [useZone,setUseZone]=useState(false);const [ruleBounds,setRuleBounds]=useState({min_lat:'-18.5',max_lat:'0',min_lon:'-82',max_lon:'-68'});
-async function load(){try{setItems(await authorized<Alert[]>('/api/v1/alerts'));}catch(e){setMessage(String(e))}}
-useEffect(()=>{void load();void authorized<{enabled:boolean}>('/api/v1/alerts/delivery/config').then(v=>setEnabled(v.enabled)).catch(()=>{});void authorized<MonitorStatus>('/api/v1/monitoring/status').then(setMonitor).catch(()=>{});void authorized<MonitorRun[]>('/api/v1/monitoring/runs').then(setRuns).catch(()=>{});void authorized<AlertRule[]>('/api/v1/alert-rules').then(setRules).catch(()=>{});},[]);
-async function openReview(alert:Alert,action:'approve'|'send'|'reject'|'cancel'){
- returnFocusRef.current=document.activeElement instanceof HTMLElement?document.activeElement:null;
- setReason('');setEvidence(null);setDecision({alert,action});
- try{setEvidence(await authorized(`/api/v1/alerts/${alert.id}/evidence`))}catch(e){setMessage('No se pudo cargar evidencia: '+String(e))}
-}
+import { useEffect, useState } from 'react';
+import {
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
+  Play,
+  Layers,
+  ShieldCheck,
+  History,
+  Compass
+} from 'lucide-react';
+import { authorized } from '../services/auth';
+import { useAuth } from '../app/auth';
+import { StatusBadge } from '../components/StatusBadge';
+import { ExpandableModal } from '../components/ExpandableModal';
 
-// Diálogo modal accesible: foco inicial, navegación Tab contenida, Escape y retorno del foco.
-useEffect(()=>{
- if(!decision)return;
- const node=dialogRef.current;
- const field=node?.querySelector<HTMLTextAreaElement>('#review-reason');
- field?.focus();
- const onKey=(event:KeyboardEvent)=>{
-  if(event.key==='Escape'){event.preventDefault();setDecision(null);return;}
-  if(event.key!=='Tab'||!node)return;
-  const elements=Array.from(node.querySelectorAll<HTMLElement>('a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])')).filter(el=>el.getClientRects().length>0);
-  if(elements.length===0)return;
-  const first=elements[0],last=elements[elements.length-1];
-  if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus()}
-  else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus()}
- };
- document.addEventListener('keydown',onKey);
- return()=>{document.removeEventListener('keydown',onKey);returnFocusRef.current?.focus()};
-},[decision]);
+type AlertRule = {
+  id: string;
+  name: string;
+  min_magnitude: number;
+  min_lat: number | null;
+  max_lat: number | null;
+  min_lon: number | null;
+  max_lon: number | null;
+  cooldown_minutes: number;
+  enabled: boolean;
+};
 
-async function runSimulation(){if(!selectedRule||!snapshotId.trim()){setMessage('Selecciona una regla y escribe el UUID del snapshot.');return}
- setBusy(true);setMessage('');try{setSimulation(await authorized(`/api/v1/alert-rules/${selectedRule}/simulate?snapshot_id=${encodeURIComponent(snapshotId.trim())}`))}catch(e){setMessage(String(e))}finally{setBusy(false)}
+type MonitorRun = {
+  id: string;
+  started_at: string;
+  status: string;
+  examined: number;
+  created: number;
+  duplicates: number;
+};
+
+type MonitorStatus = {
+  enabled: boolean;
+  automatic_send: boolean;
+};
+
+type Alert = {
+  id: string;
+  external_event_id: string;
+  title: string;
+  body: string;
+  status: string;
+  created_at: string;
+  created_by: string;
+  approved_by: string | null;
+};
+
+type SimulationResult = {
+  simulation: boolean;
+  rule_id: string;
+  snapshot_id: string;
+  total_events: number;
+  eligible: number;
+  cooldown_excluded: number;
+  sample: { external_id: string; magnitude: number; occurred_at: string; latitude: number; longitude: number }[];
+  note: string;
+};
+
+type SnapshotItem = {
+  id: string;
+  purpose: string;
+  queried_at: string;
+  event_count: number;
+  sha256: string | null;
+};
+
+export function Alerts() {
+  const { user } = useAuth();
+  const [items, setItems] = useState<Alert[]>([]);
+  const [filterStatus, setFilterStatus] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending');
+  const [rules, setRules] = useState<AlertRule[]>([]);
+  const [snapshots, setSnapshots] = useState<SnapshotItem[]>([]);
+  const [runs, setRuns] = useState<MonitorRun[]>([]);
+  const [monitor, setMonitor] = useState<MonitorStatus | null>(null);
+
+  // Estados de revisión y doble operador
+  const [decision, setDecision] = useState<{ alert: Alert; action: 'approve' | 'reject' } | null>(null);
+  const [reason, setReason] = useState('');
+  const [evidence, setEvidence] = useState<{
+    external_id: string;
+    magnitude: number;
+    depth_km: number;
+    place: string;
+    latitude: number;
+    longitude: number;
+    source_url: string;
+  } | null>(null);
+
+  // Estados de simulación histórica
+  const [selectedRule, setSelectedRule] = useState('');
+  const [selectedSnapshot, setSelectedSnapshot] = useState('');
+  const [simulation, setSimulation] = useState<SimulationResult | null>(null);
+  const [showSimModal, setShowSimModal] = useState(false);
+
+  // Nueva regla
+  const [ruleName, setRuleName] = useState('Perú — Umbral Crítico');
+  const [ruleMag, setRuleMag] = useState('5.0');
+  const [ruleCooldown, setRuleCooldown] = useState('60');
+
+  const [message, setMessage] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function load() {
+    try {
+      setItems(await authorized<Alert[]>('/api/v1/alerts'));
+    } catch (e) {
+      setMessage(String(e));
+    }
+  }
+
+  useEffect(() => {
+    void load();
+    void authorized<MonitorStatus>('/api/v1/monitoring/status').then(setMonitor).catch(() => {});
+    void authorized<MonitorRun[]>('/api/v1/monitoring/runs').then(setRuns).catch(() => {});
+    void authorized<AlertRule[]>('/api/v1/alert-rules').then(setRules).catch(() => {});
+    void authorized<SnapshotItem[]>('/api/v1/snapshots').then(setSnapshots).catch(() => {});
+  }, []);
+
+  async function scan() {
+    setBusy(true);
+    setMessage('');
+    try {
+      const r = await authorized<{ examined: number; created: number; duplicates: number }>(
+        '/api/v1/monitoring/scan?days=2&minimum=4.0',
+        { method: 'POST' }
+      );
+      setMessage(
+        `Escaneo finalizado: ${r.examined} sismos examinados, ${r.created} nuevos candidatos propuestos, ${r.duplicates} repetidos.`
+      );
+      await load();
+      setRuns(await authorized<MonitorRun[]>('/api/v1/monitoring/runs'));
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function openReview(alert: Alert, action: 'approve' | 'reject') {
+    setReason('');
+    setEvidence(null);
+    setDecision({ alert, action });
+    try {
+      setEvidence(await authorized(`/api/v1/alerts/${alert.id}/evidence`));
+    } catch (e) {
+      setMessage('No se pudo cargar la evidencia: ' + String(e));
+    }
+  }
+
+  async function submitDecision() {
+    if (!decision || !reason.trim()) {
+      setMessage('La justificación es obligatoria según la política de doble operador.');
+      return;
+    }
+    setBusy(true);
+    setMessage('');
+    try {
+      await authorized(`/api/v1/alerts/${decision.alert.id}/${decision.action}`, {
+        method: 'POST',
+        body: JSON.stringify({ note: reason.trim() })
+      });
+      setMessage(
+        `Aviso ${decision.action === 'approve' ? 'aprobado' : 'rechazado'} con éxito y registrado en auditoría.`
+      );
+      setDecision(null);
+      await load();
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function runSimulation() {
+    if (!selectedRule || !selectedSnapshot) {
+      setMessage('Selecciona una regla y un snapshot para simular.');
+      return;
+    }
+    setBusy(true);
+    setMessage('');
+    try {
+      const sim = await authorized<SimulationResult>(
+        `/api/v1/alert-rules/${selectedRule}/simulate?snapshot_id=${encodeURIComponent(selectedSnapshot)}`
+      );
+      setSimulation(sim);
+      setShowSimModal(true);
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveRule(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setMessage('');
+    try {
+      const body = {
+        name: ruleName,
+        min_magnitude: Number(ruleMag),
+        cooldown_minutes: Number(ruleCooldown),
+        enabled: true
+      };
+      await authorized('/api/v1/alert-rules', { method: 'POST', body: JSON.stringify(body) });
+      setRules(await authorized<AlertRule[]>('/api/v1/alert-rules'));
+      setMessage('Regla configurada y activada exitosamente.');
+    } catch (e) {
+      setMessage(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const filteredAlerts = items.filter((a) => {
+    if (filterStatus === 'all') return true;
+    return a.status === filterStatus;
+  });
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {/* Encabezado */}
+      <div className="page-header">
+        <div className="page-title-group">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+            <StatusBadge type="informational" />
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+              Principio de Doble Operador Activo
+            </span>
+          </div>
+          <h1>Centro de Avisos y Supervisión Humana</h1>
+          <p>
+            Constructor de reglas de disparo, escáner activo bajo demanda y bandeja de aprobación por un
+            segundo operador. Ninguna notificación se emite sin validación justificada.
+          </p>
+        </div>
+
+        {/* Botón de Escaneo Activo Bajo Demanda */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+          <button
+            className="btn btn-primary"
+            onClick={() => void scan()}
+            disabled={busy || !monitor?.enabled}
+            title="Interrogar sismos recientes y detectar candidatos"
+          >
+            <Play size={15} />
+            <span>{busy ? 'Escaneando…' : 'Escanear candidatos ahora'}</span>
+          </button>
+          {runs.length > 0 && (
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+              {runs.length} escaneos registrados
+            </span>
+          )}
+        </div>
+      </div>
+
+      {message && (
+        <div
+          role="alert"
+          style={{
+            padding: '12px 18px',
+            borderRadius: 'var(--radius-sm)',
+            backgroundColor: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderLeft: '4px solid var(--primary)',
+            color: 'var(--text)',
+            fontSize: '13px'
+          }}
+        >
+          {message}
+        </div>
+      )}
+
+      {/* Fila Operativa: Simulador de Reglas (Costado Izq) y Constructor de Reglas (Costado Der) */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+          gap: '20px'
+        }}
+      >
+        {/* Simulador Histórico de Reglas */}
+        <div className="enterprise-panel" style={{ margin: 0 }}>
+          <div className="panel-header">
+            <div className="panel-title">
+              <h2>Simulador Histórico de Reglas</h2>
+              <p>Evalúa el impacto de una regla sobre snapshots del pasado</p>
+            </div>
+            <Compass size={17} color="var(--primary)" />
+          </div>
+
+          <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
+                Regla a evaluar
+              </label>
+              <select
+                className="filter-select"
+                style={{ width: '100%' }}
+                value={selectedRule}
+                onChange={(e) => setSelectedRule(e.target.value)}
+              >
+                <option value="">Selecciona una regla…</option>
+                {rules.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name} (M ≥ {r.min_magnitude})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
+                Snapshot histórico de prueba
+              </label>
+              <select
+                className="filter-select"
+                style={{ width: '100%' }}
+                value={selectedSnapshot}
+                onChange={(e) => setSelectedSnapshot(e.target.value)}
+              >
+                <option value="">Selecciona un snapshot…</option>
+                {snapshots.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {new Date(s.queried_at).toLocaleDateString()} — {s.event_count} eventos ({s.purpose})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              type="button"
+              className="btn btn-outline"
+              disabled={busy || !selectedRule || !selectedSnapshot}
+              onClick={() => void runSimulation()}
+              style={{ marginTop: '4px' }}
+            >
+              <Play size={14} />
+              <span>Ejecutar Simulación Retrospectiva</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Configuración Rápida de Reglas */}
+        <div className="enterprise-panel" style={{ margin: 0 }}>
+          <div className="panel-header">
+            <div className="panel-title">
+              <h2>Crear Regla de Detección</h2>
+              <p>Define umbrales geofísicos para proponer candidatos</p>
+            </div>
+            <ShieldCheck size={17} color="var(--primary)" />
+          </div>
+
+          <form onSubmit={saveRule} className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>
+                Nombre identificador
+              </label>
+              <input
+                type="text"
+                className="filter-select"
+                style={{ width: '100%' }}
+                value={ruleName}
+                onChange={(e) => setRuleName(e.target.value)}
+                required
+              />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>
+                  Magnitud mínima
+                </label>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="3.5"
+                  max="9.9"
+                  className="filter-select"
+                  style={{ width: '100%' }}
+                  value={ruleMag}
+                  onChange={(e) => setRuleMag(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>
+                  Espera (Cooldown min)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="1440"
+                  className="filter-select"
+                  style={{ width: '100%' }}
+                  value={ruleCooldown}
+                  onChange={(e) => setRuleCooldown(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+
+            <button type="submit" className="btn btn-primary" disabled={busy} style={{ marginTop: '6px' }}>
+              <span>Guardar Regla Activa</span>
+            </button>
+          </form>
+        </div>
+      </div>
+
+      {/* Bandeja de Avisos y Flujo de Doble Operador */}
+      <div className="enterprise-panel" style={{ margin: 0 }}>
+        <div className="panel-header">
+          <div className="panel-title">
+            <h2>Bandeja de Avisos Informativos ({filteredAlerts.length})</h2>
+            <p>Revisión colegiada: un operador propone y otro aprueba con justificación</p>
+          </div>
+
+          <div style={{ display: 'flex', gap: '6px' }}>
+            {(['pending', 'approved', 'rejected', 'all'] as const).map((st) => (
+              <button
+                key={st}
+                type="button"
+                className={`btn btn-sm ${filterStatus === st ? 'btn-primary' : 'btn-outline'}`}
+                onClick={() => setFilterStatus(st)}
+              >
+                {st === 'pending'
+                  ? 'Pendientes'
+                  : st === 'approved'
+                  ? 'Aprobados'
+                  : st === 'rejected'
+                  ? 'Rechazados'
+                  : 'Todos'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="panel-body" style={{ padding: 0 }}>
+          {filteredAlerts.length === 0 ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
+              No hay avisos en estado "{filterStatus}".
+            </div>
+          ) : (
+            <div className="table-container">
+              <table className="enterprise-table">
+                <thead>
+                  <tr>
+                    <th>Estado</th>
+                    <th>Título / Descripción</th>
+                    <th>ID Evento</th>
+                    <th>Fecha Registro</th>
+                    <th>Creado Por</th>
+                    <th>Acción</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredAlerts.map((alt) => {
+                    const isAuthor = alt.created_by === user?.id;
+                    return (
+                      <tr key={alt.id}>
+                        <td>
+                          <span
+                            style={{
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              padding: '3px 8px',
+                              borderRadius: '4px',
+                              backgroundColor:
+                                alt.status === 'approved'
+                                  ? 'var(--success-bg)'
+                                  : alt.status === 'rejected'
+                                  ? 'var(--error-bg)'
+                                  : 'var(--warning-bg)',
+                              color:
+                                alt.status === 'approved'
+                                  ? 'var(--success)'
+                                  : alt.status === 'rejected'
+                                  ? 'var(--error)'
+                                  : 'var(--warning)',
+                              border: '1px solid currentColor'
+                            }}
+                          >
+                            {alt.status.toUpperCase()}
+                          </span>
+                        </td>
+                        <td>
+                          <strong style={{ fontSize: '13px', display: 'block' }}>{alt.title}</strong>
+                          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{alt.body}</span>
+                        </td>
+                        <td>
+                          <code style={{ fontSize: '11px', background: 'var(--surface-muted)', padding: '2px 5px', borderRadius: '4px' }}>
+                            {alt.external_event_id}
+                          </code>
+                        </td>
+                        <td>
+                          <span style={{ fontSize: '12px' }}>
+                            {new Date(alt.created_at).toLocaleString('es-PE', { timeZone: 'America/Lima' })}
+                          </span>
+                        </td>
+                        <td>
+                          <span style={{ fontSize: '12px' }}>
+                            {isAuthor ? <strong style={{ color: 'var(--primary)' }}>Tú (Autor)</strong> : 'Otro operador'}
+                          </span>
+                        </td>
+                        <td>
+                          {alt.status === 'pending' ? (
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-outline"
+                                style={{ borderColor: 'var(--success)', color: 'var(--success)' }}
+                                onClick={() => void openReview(alt, 'approve')}
+                                title="Revisar evidencia y aprobar aviso"
+                              >
+                                <CheckCircle2 size={13} />
+                                <span>Aprobar</span>
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-outline"
+                                style={{ borderColor: 'var(--error)', color: 'var(--error)' }}
+                                onClick={() => void openReview(alt, 'reject')}
+                                title="Rechazar aviso"
+                              >
+                                <XCircle size={13} />
+                                <span>Rechazar</span>
+                              </button>
+                            </div>
+                          ) : (
+                            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Auditado</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Modal de Revisión por Doble Operador con Evidencia */}
+      <ExpandableModal
+        isOpen={Boolean(decision)}
+        onClose={() => setDecision(null)}
+        title={decision?.action === 'approve' ? 'Aprobación de Aviso Informativo' : 'Rechazo de Aviso'}
+        subtitle="Principio de doble operador: se requiere justificación escrita y revisión de evidencia física"
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+          {decision?.alert.created_by === user?.id && (
+            <div
+              style={{
+                padding: '12px 16px',
+                borderRadius: 'var(--radius-sm)',
+                backgroundColor: 'var(--warning-bg)',
+                border: '1px solid var(--warning-border)',
+                color: 'var(--warning)',
+                fontSize: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+            >
+              <AlertTriangle size={18} />
+              <span>
+                <strong>Atención:</strong> Tú registraste este candidato. La regla de control de SismoIA
+                impedirá que apruebes tu propio aviso para garantizar la separación de funciones.
+              </span>
+            </div>
+          )}
+
+          {/* Ficha de Evidencia del Sismo */}
+          {evidence && (
+            <div
+              style={{
+                padding: '16px',
+                borderRadius: 'var(--radius-sm)',
+                backgroundColor: 'var(--surface-muted)',
+                border: '1px solid var(--border)',
+                display: 'grid',
+                gap: '10px'
+              }}
+            >
+              <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>
+                EVIDENCIA FÍSICA ASOCIADA (USGS):
+              </span>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+                <div>
+                  <small style={{ color: 'var(--text-muted)' }}>Magnitud:</small>
+                  <strong style={{ display: 'block', fontSize: '15px' }}>M {evidence.magnitude}</strong>
+                </div>
+                <div>
+                  <small style={{ color: 'var(--text-muted)' }}>Profundidad:</small>
+                  <strong style={{ display: 'block', fontSize: '15px' }}>{evidence.depth_km} km</strong>
+                </div>
+                <div>
+                  <small style={{ color: 'var(--text-muted)' }}>Localidad:</small>
+                  <strong style={{ display: 'block', fontSize: '14px' }}>{evidence.place}</strong>
+                </div>
+                <div>
+                  <small style={{ color: 'var(--text-muted)' }}>Coordenadas:</small>
+                  <span style={{ display: 'block', fontSize: '12px' }}>
+                    {evidence.latitude}°, {evidence.longitude}°
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
+              Justificación de la decisión (Obligatoria para auditoría):
+            </label>
+            <textarea
+              rows={3}
+              className="filter-select"
+              style={{ width: '100%', padding: '10px', resize: 'vertical' }}
+              placeholder="Escribe la razón fundamentada (ej. 'Contraste con catálogo USGS verificado y límites de afectación confirmados')..."
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              required
+            />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+            <button type="button" className="btn btn-outline" onClick={() => setDecision(null)}>
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={busy || !reason.trim()}
+              onClick={() => void submitDecision()}
+            >
+              <span>Confirmar {decision?.action === 'approve' ? 'Aprobación' : 'Rechazo'}</span>
+            </button>
+          </div>
+        </div>
+      </ExpandableModal>
+
+      {/* Modal de Simulación Histórica de Reglas */}
+      <ExpandableModal
+        isOpen={showSimModal}
+        onClose={() => setShowSimModal(false)}
+        title="Resultados de la Simulación Retrospectiva"
+        subtitle="Evaluación virtual sobre el snapshot histórico seleccionado (sin generación de alertas reales)"
+      >
+        {simulation && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div className="kpi-grid">
+              <div className="kpi-card">
+                <div className="kpi-top">
+                  <span className="kpi-label">Eventos Evaluados</span>
+                  <History size={16} />
+                </div>
+                <div className="kpi-number">{simulation.total_events}</div>
+                <div className="kpi-trend">En el snapshot analizado</div>
+              </div>
+
+              <div className="kpi-card">
+                <div className="kpi-top">
+                  <span className="kpi-label">Alertas Potenciales</span>
+                  <CheckCircle2 size={16} color="var(--success)" />
+                </div>
+                <div className="kpi-number">{simulation.eligible}</div>
+                <div className="kpi-trend">Cumplieron la regla</div>
+              </div>
+
+              <div className="kpi-card">
+                <div className="kpi-top">
+                  <span className="kpi-label">Excluidos por Cooldown</span>
+                  <Layers size={16} color="var(--warning)" />
+                </div>
+                <div className="kpi-number">{simulation.cooldown_excluded}</div>
+                <div className="kpi-trend">Evitaron spam / duplicación</div>
+              </div>
+            </div>
+
+            <div>
+              <h3 style={{ fontSize: '14px', fontWeight: 700, margin: '0 0 8px' }}>
+                Muestra de Sismos que Habrían Disparado la Alerta:
+              </h3>
+              {simulation.sample.length === 0 ? (
+                <p style={{ color: 'var(--text-muted)', fontSize: '13px' }}>
+                  Ningún sismo del período cumplió las condiciones de la regla.
+                </p>
+              ) : (
+                <div className="table-container">
+                  <table className="enterprise-table">
+                    <thead>
+                      <tr>
+                        <th>Magnitud</th>
+                        <th>Fecha Ocurrencia (UTC)</th>
+                        <th>Coordenadas</th>
+                        <th>ID Externo</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {simulation.sample.map((s) => (
+                        <tr key={s.external_id}>
+                          <td>
+                            <strong style={{ color: 'var(--mag-high)' }}>M {s.magnitude.toFixed(1)}</strong>
+                          </td>
+                          <td>{new Date(s.occurred_at).toUTCString()}</td>
+                          <td>
+                            {s.latitude.toFixed(2)}°, {s.longitude.toFixed(2)}°
+                          </td>
+                          <td>
+                            <code>{s.external_id}</code>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </ExpandableModal>
+    </div>
+  );
 }
-async function saveRule(){setBusy(true);setMessage('');try{
-const body={name:ruleName,min_magnitude:Number(ruleMag),cooldown_minutes:Number(ruleCooldown),enabled:false,...(useZone?{min_lat:Number(ruleBounds.min_lat),max_lat:Number(ruleBounds.max_lat),min_lon:Number(ruleBounds.min_lon),max_lon:Number(ruleBounds.max_lon)}:{})};
-await authorized('/api/v1/alert-rules',{method:'POST',body:JSON.stringify(body)});
-setRules(await authorized<AlertRule[]>('/api/v1/alert-rules'));
-setMessage('Regla creada desactivada. Puedes habilitarla de forma explícita.');
-}catch(e){setMessage(String(e))}finally{setBusy(false)}}
-async function toggleRule(r:AlertRule){setBusy(true);setMessage('');try{
-const body={name:r.name,min_magnitude:r.min_magnitude,min_lat:r.min_lat,max_lat:r.max_lat,min_lon:r.min_lon,max_lon:r.max_lon,cooldown_minutes:r.cooldown_minutes,enabled:!r.enabled};
-await authorized(`/api/v1/alert-rules/${r.id}`,{method:'PUT',body:JSON.stringify(body)});
-setRules(await authorized<AlertRule[]>('/api/v1/alert-rules'));
-setMessage('Configuración de regla actualizada. Los avisos siguen sujetos a revisión humana.');
-}catch(e){setMessage(String(e))}finally{setBusy(false)}}
-async function scan(){if(!window.confirm('Consultar USGS y generar solamente candidatos pendientes, sin enviar notificaciones?'))return;setBusy(true);setMessage('');try{const r=await authorized<{examined:number;created:number;duplicates:number}>('/api/v1/monitoring/scan?days=1&minimum=4.5',{method:'POST'});setMessage(`Monitoreo completado: ${r.examined} revisados, ${r.created} nuevos, ${r.duplicates} repetidos. No se enviaron mensajes.`);await load();setRuns(await authorized<MonitorRun[]>('/api/v1/monitoring/runs'));}catch(e){setMessage(e instanceof Error?e.message:String(e))}finally{setBusy(false)}}
-async function call(path:string,data:unknown){setBusy(true);setMessage('');try{await authorized(path,{method:'POST',body:JSON.stringify(data)});await load();setTitle('');setBody('');setEventId('');setMessage('Operación registrada y auditada.');}catch(e){setMessage(e instanceof Error?e.message:String(e))}finally{setBusy(false)}}
-return <div className="sismo-alerts"><h1>Centro de avisos informativos</h1><p>Eventos observados, sin predicción sísmica. Todo envío requiere revisión humana y acción explícita de un operador autorizado.</p><p role="status">{enabled?'ntfy habilitado: prueba solo en celulares autorizados.':'ntfy deshabilitado: ninguna notificación externa puede enviarse.'}</p>{message&&<p role="alert">{message}</p>}
-<section className="panel" style={{padding:20,marginBottom:20}}><h2>Monitoreo USGS supervisado — Fase 8</h2><p>Consulta eventos recientes y propone avisos pendientes. No aprueba ni envía notificaciones automáticamente.</p><p role="status">{monitor?(monitor.enabled?'Monitoreo habilitado; envío automático desactivado.':'Monitoreo desactivado por configuración.'):'Monitoreo disponible solo para operadores autorizados.'}</p><button type="button" disabled={busy||!monitor?.enabled} onClick={()=>void scan()}>Revisar USGS y crear candidatos</button>{runs.length>0&&<p><small>Última consulta: {new Date(runs[0].started_at).toLocaleString()} · Nuevos: {runs[0].created} · Repetidos: {runs[0].duplicates}</small></p>}</section>
-<section className="panel" style={{padding:20,marginBottom:20}}>
-<h2>Reglas supervisadas de candidatos</h2>
-<p>Las reglas controlan qué eventos pueden convertirse en candidatos. Nunca aprueban ni envían avisos automáticamente. Al crear la primera regla, el monitoreo deja de proponer eventos fuera de las reglas activas.</p>
-<form onSubmit={e=>{e.preventDefault();void saveRule()}} style={{display:'grid',gap:12,maxWidth:640}}>
-<label>Nombre de la regla<input required minLength={3} maxLength={100} value={ruleName} onChange={e=>setRuleName(e.target.value)}/></label>
-<label>Magnitud mínima (3.5 a 9.9)<input type="number" required min={3.5} max={9.9} step={0.1} value={ruleMag} onChange={e=>setRuleMag(e.target.value)}/></label>
-<label>Cooldown en minutos (0–10080)<input type="number" required min={0} max={10080} value={ruleCooldown} onChange={e=>setRuleCooldown(e.target.value)}/></label>
-<label><input type="checkbox" checked={useZone} onChange={e=>setUseZone(e.target.checked)}/> Restringir a un rectángulo geográfico</label>
-{useZone&&<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))',gap:10}}>
-{(['min_lat','max_lat','min_lon','max_lon'] as const).map(k=><label key={k}>{k}<input type="number" required step="any" value={ruleBounds[k]} onChange={e=>setRuleBounds(v=>({...v,[k]:e.target.value}))}/></label>)}</div>}
-<button disabled={busy} type="submit">Crear regla (desactivada)</button>
-</form>
-{rules.length===0?<p>No hay reglas creadas; el monitoreo mantiene su comportamiento anterior.</p>:<div style={{display:'grid',gap:12,marginTop:18}}>{rules.map(r=><article key={r.id} style={{padding:12,border:'1px solid var(--border)',borderRadius:8}}><strong>{r.name}</strong><p>Magnitud ≥ {r.min_magnitude} · Cooldown: {r.cooldown_minutes} min · {r.min_lat===null?'Zona: Perú (filtro de USGS)':`Lat ${r.min_lat} a ${r.max_lat}; Lon ${r.min_lon} a ${r.max_lon}`}</p><p>Estado: {r.enabled?'Habilitada':'Deshabilitada'}</p><button disabled={busy} type="button" onClick={()=>{if(window.confirm(r.enabled?'¿Deshabilitar esta regla?':'¿Habilitar esta regla para generar candidatos pendientes?'))void toggleRule(r)}}>{r.enabled?'Deshabilitar':'Habilitar'}</button></article>)}</div>}
-<div style={{marginTop:20,borderTop:'1px solid var(--border)',paddingTop:16}}><h3>Simulador histórico de reglas (sin envíos)</h3>
-<p>Selecciona una regla y un snapshot existente. Esta prueba no crea candidatos ni modifica la base de avisos.</p>
-<label>Regla<select value={selectedRule} onChange={e=>setSelectedRule(e.target.value)}><option value="">Seleccionar</option>{rules.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
-<label>UUID del snapshot<input value={snapshotId} onChange={e=>setSnapshotId(e.target.value)} placeholder="UUID de una captura USGS" /></label>
-<button type="button" disabled={busy||!selectedRule||!snapshotId.trim()} onClick={()=>void runSimulation()}>Simular sin enviar avisos</button>
-{simulation&&<div role="status" className="panel" style={{padding:12,marginTop:12}}><strong>Resultado simulado</strong><p>Eventos examinados: {simulation.total_events} · Elegibles: {simulation.eligible} · Excluidos por cooldown: {simulation.cooldown_excluded}</p><p>Mensajes enviados: {simulation.messages_sent}. No se realizaron cambios.</p></div>}</div>
-</section>
-<section className="panel" style={{padding:20,marginBottom:20}}><h2>Crear borrador para revisión</h2><form onSubmit={e=>{e.preventDefault();void call('/api/v1/alerts',{source:'USGS',external_event_id:eventId,title,body})}} style={{display:'grid',gap:12}}><label>ID del evento USGS<input required maxLength={150} value={eventId} onChange={e=>setEventId(e.target.value)}/></label><label>Título<input required minLength={10} maxLength={140} value={title} onChange={e=>setTitle(e.target.value)}/></label><label>Descripción informativa<textarea required minLength={20} maxLength={500} value={body} onChange={e=>setBody(e.target.value)}/></label><button disabled={busy} type="submit">Crear borrador</button></form></section>
-<section className="panel" style={{padding:20}}><h2>Historial de revisión</h2>{items.length===0?<p>No existen avisos o no tienes permiso para consultarlos.</p>:<div style={{display:'grid',gap:14}}>{items.map(a=><article key={a.id} style={{borderBottom:'1px solid var(--border)',paddingBottom:12}}><div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',marginBottom:8}}><StatusBadge type="informational"/><strong>{a.title}</strong></div><p>{a.body}</p><small>USGS {a.external_event_id} · Estado: {a.status}</small><div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:8}}>{a.status==='pending'&&<><button disabled={busy||a.created_by===user?.id} title={a.created_by===user?.id?'No puedes aprobar un candidato creado por tu cuenta':undefined} onClick={()=>void openReview(a,'approve')}>Aprobar con evidencia</button>{a.created_by===user?.id&&<span className="sismo-explanation">No puedes aprobar un candidato propio.</span>}<button disabled={busy} onClick={()=>void openReview(a,'reject')}>Rechazar</button></>}{a.status==='approved'&&<><button disabled={busy||!enabled} onClick={()=>void openReview(a,'send')}>Revisar y enviar aviso</button><button disabled={busy} onClick={()=>void openReview(a,'cancel')}>Cancelar</button></>}</div></article>)}</div>}</section>{decision&&<div className="sismo-dialog-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setDecision(null)}}><div ref={dialogRef} className="sismo-dialog" role="dialog" aria-modal="true" aria-labelledby="sismo-dialog-title" aria-describedby="sismo-dialog-description"><form onSubmit={e=>{e.preventDefault();if(reason.trim().length<10)return;const d=decision;setDecision(null);void call(`/api/v1/alerts/${d.alert.id}/${d.action}`,{note:reason.trim()})}}><h2 id="sismo-dialog-title">{({approve:'Aprobar con evidencia',reject:'Rechazar candidato',send:'Confirmar envío informativo',cancel:'Cancelar aviso'} as const)[decision.action]}</h2><StatusBadge type="informational"/><h3>{decision.alert.title}</h3><p>{decision.alert.body}</p><p><strong>Procedencia:</strong> USGS {decision.alert.external_event_id}</p>{evidence?.observation?<div className="sismo-explanation"><p><strong>Snapshot:</strong> {evidence.observation.snapshot_id}</p><p>Magnitud: {evidence.observation.magnitude} · Profundidad: {evidence.observation.depth_km} km</p><p>Coordenadas: {evidence.observation.latitude}, {evidence.observation.longitude}</p><p><a href={evidence.observation.source_url||'#'} target="_blank" rel="noopener noreferrer">Ver procedencia USGS</a></p></div>:<p role="status">No existe una captura archivada de este evento. Verifica la información en USGS antes de decidir.</p>}<p><strong>Creado:</strong> {new Date(decision.alert.created_at).toLocaleString('es-PE',{timeZone:'UTC'})} UTC</p><p><strong>Estado:</strong> {decision.alert.status}</p><p id="sismo-dialog-description" className="sismo-explanation">Se trata de información sobre un evento ya observado; no es una comunicación oficial ni un pronóstico.</p><label htmlFor="review-reason">Motivo de la revisión (obligatorio, mínimo 10 caracteres)<textarea id="review-reason" required minLength={10} aria-describedby="review-reason-help" value={reason} onChange={e=>setReason(e.target.value)}/></label><p className="sismo-explanation" id="review-reason-help">Confirma la fuente y justifica la decisión. El motivo se almacena en el historial auditable de decisiones, también cuando se confirma el envío.</p><div className="sismo-dialog-actions"><button type="button" onClick={()=>setDecision(null)}>Cancelar</button><button type="submit" disabled={busy||reason.trim().length<10}>Confirmar {({approve:'aprobación',reject:'rechazo',send:'envío',cancel:'cancelación'} as const)[decision.action]}</button></div></form></div></div>}</div>}

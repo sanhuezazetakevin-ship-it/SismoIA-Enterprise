@@ -1,7 +1,157 @@
-/* Fuente única de tokens. Los nombres históricos son alias para compatibilidad. */
-:root{
- --primary:#0F4C5C;--accent:#7A1F3D;--bg:#F6F8FA;--surface:#FFFFFF;--border:#D9E0E6;--text:#1B2430;--text-muted:#5B6776;--error:#B42318;
- --primary-hover:#0B3A47;--sidebar:#103847;--fg:var(--text);--muted:var(--text-muted);--line:var(--border);--secondary:var(--accent);--highlight:#E7EFF2;--surface-muted:#EDF2F5;--focus:#0F4C5C;--shadow:0 2px 8px rgba(14,38,48,.045);
- --magnitude-light:#B4D8E6;--magnitude-medium:#5695B6;--magnitude-dark:#164D75;
+/* Sistema de Diseño Corporativo - SismoIA Enterprise
+   Paleta ejecutiva de alta legibilidad, soporte para modo claro y oscuro, y tokens semánticos */
+:root {
+  /* Tipografía y fuentes */
+  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  
+  /* Colores primarios y acentos - Modo Claro (Corporativo Ejecutivo Petróleo & Slate) */
+  --primary: #0F4C5C;
+  --primary-hover: #0a3642;
+  --primary-light: #e0f2f5;
+  --primary-glow: rgba(15, 76, 92, 0.15);
+  --accent: #8E2848;
+  --accent-hover: #701e37;
+  --accent-light: #fbebf0;
+  
+  /* Superficies y Fondos */
+  --bg: #F8FAFC;
+  --surface: #FFFFFF;
+  --surface-muted: #F1F5F9;
+  --surface-raised: #FFFFFF;
+  --sidebar: #0C232E;
+  --sidebar-active: #153747;
+  --sidebar-hover: #102d3b;
+  --sidebar-text: #E2E8F0;
+  --sidebar-muted: #8FA5B3;
+  --sidebar-border: #183d4f;
+  
+  /* Bordes y Líneas — Mayor delineación y contraste en modo claro */
+  --border: #CBD5E1;
+  --border-subtle: #E2E8F0;
+  --border-light: #E2E8F0;
+  --border-focus: #0F4C5C;
+  --line: var(--border);
+  
+  /* Texto */
+  --text: #0F172A;
+  --text-muted: #64748B;
+  --text-inverse: #FFFFFF;
+  --fg: var(--text);
+  --muted: var(--text-muted);
+  
+  /* Estados del sistema */
+  --success: #0D9488;
+  --success-bg: #F0FDFA;
+  --success-border: #99F6E4;
+  --warning: #D97706;
+  --warning-bg: #FFFBEB;
+  --warning-border: #FDE68A;
+  --error: #DC2626;
+  --error-bg: #FEF2F2;
+  --error-border: #FECACA;
+  --info: #0284C7;
+  --info-bg: #F0F9FF;
+  --info-border: #BAE6FD;
+  
+  /* Escala de severidad sísmica */
+  --mag-low: #0D9488;
+  --mag-low-bg: #CCFBF1;
+  --mag-med: #D97706;
+  --mag-med-bg: #FEF3C7;
+  --mag-high: #E11D48;
+  --mag-high-bg: #FFE4E6;
+  
+  --magnitude-light: #0D9488;
+  --magnitude-medium: #D97706;
+  --magnitude-dark: #E11D48;
+  
+  /* Sombras y elevaciones corporativas (Modo Claro) */
+  --shadow-sm: 0 1px 3px 0 rgba(15, 23, 42, 0.08), 0 1px 2px -1px rgba(15, 23, 42, 0.06);
+  --shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.08), 0 2px 4px -2px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 10px 15px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -4px rgba(15, 23, 42, 0.04);
+  --shadow-lg: 0 20px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(15, 23, 42, 0.06);
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 16px;
+  --radius-full: 9999px;
+  
+  --highlight: #E6F3F5;
+  --focus: #0F4C5C;
+  --map-water: #E2E8F0;
+  --map-land: #CBD5E1;
+  --map-label: #475569;
 }
-:root[data-theme=dark]{--primary:#88C8D3;--accent:#D49AAE;--bg:#101C26;--surface:#172B38;--border:#39515F;--text:#EFF5F7;--text-muted:#C3D1DA;--error:#FCA5A5;--primary-hover:#B0E0E7;--sidebar:#0B1822;--fg:var(--text);--muted:var(--text-muted);--line:var(--border);--secondary:var(--accent);--highlight:#294454;--surface-muted:#243B49;--focus:#A3DCE6;--shadow:0 2px 8px rgba(0,0,0,.12)}
+
+:root[data-theme='dark'] {
+  /* Primarios y Acentos - Modo Oscuro (Petróleo Profundo & Cyan Eléctrico) */
+  --primary: #38BDF8;
+  --primary-hover: #7DD3FC;
+  --primary-light: #082F49;
+  --primary-glow: rgba(56, 189, 248, 0.18);
+  --accent: #F43F5E;
+  --accent-hover: #FB7185;
+  --accent-light: #4C0519;
+  
+  /* Superficies y Fondos */
+  --bg: #0B131A;
+  --surface: #121F2B;
+  --surface-muted: #182A3A;
+  --surface-raised: #1C3244;
+  --sidebar: #070E14;
+  --sidebar-active: #152B3B;
+  --sidebar-hover: #0E1F2B;
+  --sidebar-text: #F1F5F9;
+  --sidebar-muted: #7E97A6;
+  --sidebar-border: #172D3D;
+  
+  /* Bordes y Líneas */
+  --border: #223B4E;
+  --border-subtle: #192C3A;
+  --border-focus: #38BDF8;
+  --line: var(--border);
+  
+  /* Texto */
+  --text: #F8FAFC;
+  --text-muted: #94A3B8;
+  --text-inverse: #0F172A;
+  --fg: var(--text);
+  --muted: var(--text-muted);
+  
+  /* Estados del sistema */
+  --success: #2DD4BF;
+  --success-bg: #042F2E;
+  --success-border: #115E59;
+  --warning: #FBBF24;
+  --warning-bg: #451A03;
+  --warning-border: #78350F;
+  --error: #F87171;
+  --error-bg: #450A0A;
+  --error-border: #7F1D1D;
+  --info: #38BDF8;
+  --info-bg: #082F49;
+  --info-border: #0369A1;
+  
+  /* Escala de severidad sísmica */
+  --mag-low: #2DD4BF;
+  --mag-low-bg: #042F2E;
+  --mag-med: #FBBF24;
+  --mag-med-bg: #451A03;
+  --mag-high: #FB7185;
+  --mag-high-bg: #4C0519;
+  
+  --magnitude-light: #2DD4BF;
+  --magnitude-medium: #FBBF24;
+  --magnitude-dark: #FB7185;
+  
+  /* Sombras y elevaciones en modo oscuro */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
+  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.6), 0 4px 6px -4px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.7), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+  
+  --highlight: #162E3E;
+  --focus: #38BDF8;
+  --map-water: #0F1D27;
+  --map-land: #1B3344;
+  --map-label: #8DA5B5;
+}

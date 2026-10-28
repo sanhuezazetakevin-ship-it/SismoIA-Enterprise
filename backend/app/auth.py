@@ -65,10 +65,16 @@ class SetRole(BaseModel):
 COOKIE='sismoia_refresh'
 
 def cookie(response,refresh):
-    response.set_cookie(COOKIE,refresh,httponly=True,secure=settings.refresh_cookie_secure,samesite='strict',path='/api/v1/auth',max_age=7*86400)
+    samesite = settings.refresh_cookie_samesite
+    if settings.refresh_cookie_secure and samesite == 'lax':
+        samesite = 'none'
+    response.set_cookie(COOKIE,refresh,httponly=True,secure=settings.refresh_cookie_secure,samesite=samesite,path='/api/v1/auth',max_age=7*86400)
 
 def clear_cookie(response):
-    response.delete_cookie(COOKIE,path='/api/v1/auth',secure=settings.refresh_cookie_secure,samesite='strict')
+    samesite = settings.refresh_cookie_samesite
+    if settings.refresh_cookie_secure and samesite == 'lax':
+        samesite = 'none'
+    response.delete_cookie(COOKIE,path='/api/v1/auth',secure=settings.refresh_cookie_secure,samesite=samesite)
 
 def refresh_session(db,user,response):
     secret=new_refresh()

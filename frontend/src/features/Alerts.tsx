@@ -7,7 +7,9 @@ import {
   Layers,
   ShieldCheck,
   History,
-  Compass
+  Compass,
+  Send,
+  Smartphone
 } from 'lucide-react';
 import { authorized } from '../services/auth';
 import { useAuth } from '../app/auth';
@@ -51,6 +53,25 @@ type Alert = {
   approved_by: string | null;
 };
 
+type DeliveryConfig = {
+  enabled: boolean;
+  provider: string;
+  topic_configured: boolean;
+};
+
+type PushDeviceItem = {
+  id: string;
+  platform: string;
+  enabled: boolean;
+};
+
+type SendResult = {
+  status: string;
+  accepted_by_ntfy: number;
+  failed: number;
+  note: string;
+};
+
 type SimulationResult = {
   simulation: boolean;
   rule_id: string;
@@ -73,7 +94,12 @@ type SnapshotItem = {
 export function Alerts() {
   const { user } = useAuth();
   const [items, setItems] = useState<Alert[]>([]);
-  const [filterStatus, setFilterStatus] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending');
+  const [filterStatus, setFilterStatus] = useState<'pending' | 'approved' | 'sent' | 'rejected' | 'all'>('pending');
+  const [delivery, setDelivery] = useState<DeliveryConfig | null>(null);
+  const [devices, setDevices] = useState<PushDeviceItem[]>([]);
+  const [topic, setTopic] = useState('');
+  const [sending, setSending] = useState<Alert | null>(null);
+  const [sendReason, setSendReason] = useState('');
   const [rules, setRules] = useState<AlertRule[]>([]);
   const [snapshots, setSnapshots] = useState<SnapshotItem[]>([]);
   const [runs, setRuns] = useState<MonitorRun[]>([]);
@@ -120,7 +146,59 @@ export function Alerts() {
     void authorized<MonitorRun[]>('/api/v1/monitoring/runs').then(setRuns).catch(() => {});
     void authorized<AlertRule[]>('/api/v1/alert-rules').then(setRules).catch(() => {});
     void authorized<SnapshotItem[]>('/api/v1/snapshots').then(setSnapshots).catch(() => {});
+    void loadDelivery();
   }, []);
+
+  async function loadDelivery() {
+    void authorized<DeliveryConfig>('/api/v1/alerts/delivery/config').then(setDelivery).catch(() => {});
+    void authorized<PushDeviceItem[]>('/api/v1/alerts/devices/mine').then(setDevices).catch(() => {});
+  }
+
+  async function registerDevice(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setMessage('');
+    try {
+      await authorized('/api/v1/alerts/devices', {
+        method: 'POST',
+        body: JSON.stringify({ token: topic.trim(), platform: 'ntfy' })
+      });
+      setTopic('');
+      setMessage('Dispositivo registrado. Suscribe tu celular a ese mismo tema en la app ntfy.');
+      await loadDelivery();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitSend() {
+    if (!sending || sendReason.trim().length < 10) {
+      setMessage('El motivo del envío es obligatorio (mínimo 10 caracteres).');
+      return;
+    }
+    setBusy(true);
+    setMessage('');
+    try {
+      const r = await authorized<SendResult>(`/api/v1/alerts/${sending.id}/send`, {
+        method: 'POST',
+        body: JSON.stringify({ note: sendReason.trim() })
+      });
+      setMessage(
+        r.status === 'sent'
+          ? `Aviso enviado a ntfy (${r.accepted_by_ntfy} aceptado). ${r.note}`
+          : `El envío falló (${r.failed} error). Revisa que haya un dispositivo registrado y que NTFY_TOPIC sea válido.`
+      );
+      setSending(null);
+      setSendReason('');
+      await load();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function scan() {
     setBusy(true);
@@ -414,6 +492,49 @@ export function Alerts() {
         </div>
       </div>
 
+      {/* Canal de entrega ntfy y registro de dispositivo */}
+      <div className="enterprise-panel" style={{ margin: 0 }}>
+        <div className="panel-header">
+          <div className="panel-title">
+            <h2>Canal de Entrega al Celular (ntfy)</h2>
+            <p>
+              {delivery?.enabled
+                ? 'Envío habilitado en el backend.'
+                : 'Envío deshabilitado: define PUSH_ENABLED=true en el backend para poder enviar.'}
+              {delivery && !delivery.topic_configured && ' Falta configurar NTFY_TOPIC.'}
+            </p>
+          </div>
+          <Smartphone size={17} color="var(--primary)" />
+        </div>
+
+        <form onSubmit={registerDevice} className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>
+              Tema ntfy (debe ser idéntico a NTFY_TOPIC y al tema suscrito en la app ntfy)
+            </label>
+            <input
+              type="text"
+              className="filter-select"
+              style={{ width: '100%' }}
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+              minLength={8}
+              maxLength={64}
+              pattern="[A-Za-z0-9_\-]{8,64}"
+              required
+            />
+          </div>
+          <button type="submit" className="btn btn-primary" disabled={busy || !topic.trim()}>
+            <span>Registrar dispositivo</span>
+          </button>
+          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+            {devices.filter((d) => d.enabled).length > 0
+              ? `${devices.filter((d) => d.enabled).length} dispositivo(s) activo(s) registrado(s).`
+              : 'Aún no hay dispositivos registrados: sin uno, el envío falla.'}
+          </span>
+        </form>
+      </div>
+
       {/* Bandeja de Avisos y Flujo de Doble Operador */}
       <div className="enterprise-panel" style={{ margin: 0 }}>
         <div className="panel-header">
@@ -423,7 +544,7 @@ export function Alerts() {
           </div>
 
           <div style={{ display: 'flex', gap: '6px' }}>
-            {(['pending', 'approved', 'rejected', 'all'] as const).map((st) => (
+            {(['pending', 'approved', 'sent', 'rejected', 'all'] as const).map((st) => (
               <button
                 key={st}
                 type="button"
@@ -434,6 +555,8 @@ export function Alerts() {
                   ? 'Pendientes'
                   : st === 'approved'
                   ? 'Aprobados'
+                  : st === 'sent'
+                  ? 'Enviados'
                   : st === 'rejected'
                   ? 'Rechazados'
                   : 'Todos'}
@@ -533,6 +656,24 @@ export function Alerts() {
                                 <span>Rechazar</span>
                               </button>
                             </div>
+                          ) : alt.status === 'approved' ? (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-primary"
+                              disabled={busy || !delivery?.enabled}
+                              onClick={() => {
+                                setSendReason('');
+                                setSending(alt);
+                              }}
+                              title={
+                                delivery?.enabled
+                                  ? 'Enviar este aviso aprobado a ntfy'
+                                  : 'Envío deshabilitado: configura PUSH_ENABLED=true en el backend'
+                              }
+                            >
+                              <Send size={13} />
+                              <span>Enviar</span>
+                            </button>
                           ) : (
                             <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Auditado</span>
                           )}
@@ -641,6 +782,50 @@ export function Alerts() {
               onClick={() => void submitDecision()}
             >
               <span>Confirmar {decision?.action === 'approve' ? 'Aprobación' : 'Rechazo'}</span>
+            </button>
+          </div>
+        </div>
+      </ExpandableModal>
+
+      {/* Modal de confirmación de envío */}
+      <ExpandableModal
+        isOpen={Boolean(sending)}
+        onClose={() => setSending(null)}
+        title="Enviar aviso aprobado a ntfy"
+        subtitle="Aviso informativo; no es una alerta sísmica temprana oficial"
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+          {sending && (
+            <div style={{ padding: '12px 16px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--surface-muted)', border: '1px solid var(--border)' }}>
+              <strong style={{ display: 'block', fontSize: '13px' }}>{sending.title}</strong>
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{sending.body}</span>
+            </div>
+          )}
+          <div>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
+              Motivo del envío (obligatorio, mínimo 10 caracteres):
+            </label>
+            <textarea
+              rows={3}
+              className="filter-select"
+              style={{ width: '100%', padding: '10px', resize: 'vertical' }}
+              value={sendReason}
+              onChange={(e) => setSendReason(e.target.value)}
+              required
+            />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+            <button type="button" className="btn btn-outline" onClick={() => setSending(null)}>
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={busy || sendReason.trim().length < 10}
+              onClick={() => void submitSend()}
+            >
+              <Send size={14} />
+              <span>Confirmar envío</span>
             </button>
           </div>
         </div>

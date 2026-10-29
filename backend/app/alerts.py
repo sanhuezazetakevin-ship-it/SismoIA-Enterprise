@@ -122,18 +122,23 @@ def send(id:str,data:DecisionIn,user:User=Depends(require('alertas.aprobar')),db
         raise HTTPException(503,str(exc)) from exc
     a=db.scalar(select(Alert).where(Alert.id==id).with_for_update())
     if not a:raise HTTPException(404,'Aviso no encontrado')
-    if a.status!='approved':raise HTTPException(409,'Requiere aprobación humana antes del envío')
+    # 'failed' = ningún dispositivo aceptó el aviso; se puede reintentar sin nueva aprobación.
+    if a.status not in ('approved','failed'):raise HTTPException(409,'Requiere aprobación humana antes del envío')
     # Mark dispatched before calling external provider, preventing repeated delivery on retries.
     a.status='dispatching';db.add(AlertReview(alert_id=a.id,actor_id=user.id,decision='send_confirmed',note=data.note.strip()));audit(db,'alerts.dispatch.start',user.id,'success',a.id);db.commit()
     devices=db.scalars(select(PushDevice).where(PushDevice.enabled.is_(True),PushDevice.platform=='ntfy',PushDevice.token==settings.ntfy_topic)).all()[:1]  # Un mensaje por tema, nunca uno por teléfono
-    successes=0;failures=0
+    successes=0;failures=0;error=None
+    if not devices:
+        error='No hay un dispositivo ntfy activo registrado para el tema configurado (NTFY_TOPIC).'
     for device in devices:
         try:
             provider_id=send_informational_push(device.token,a.title,a.body)
             delivery=PushDelivery(alert_id=a.id,device_id=device.id,status='accepted',provider_message_id=provider_id)
             successes+=1
         except Exception as exc:
-            delivery=PushDelivery(alert_id=a.id,device_id=device.id,status='failed',error=str(exc)[:300]);failures+=1
+            # El tema funciona como secreto: no se guarda ni se muestra dentro del mensaje de error.
+            error=f'{type(exc).__name__}: {str(exc).replace(settings.ntfy_topic,"***")}'[:300]
+            delivery=PushDelivery(alert_id=a.id,device_id=device.id,status='failed',error=error);failures+=1
         db.add(delivery)
     a.status='sent' if successes else 'failed';a.sent_at=now();audit(db,'alerts.dispatch.complete',user.id,a.status,a.id);db.commit()
-    return {'status':a.status,'accepted_by_ntfy':successes,'failed':failures,'note':'Aceptación del servidor ntfy no garantiza recepción, sonido o vibración en Android'}
+    return {'status':a.status,'accepted_by_ntfy':successes,'failed':failures,'error':None if successes else error,'note':'Aceptación del servidor ntfy no garantiza recepción, sonido o vibración en Android'}

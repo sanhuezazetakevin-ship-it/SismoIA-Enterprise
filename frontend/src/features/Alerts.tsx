@@ -69,6 +69,7 @@ type SendResult = {
   status: string;
   accepted_by_ntfy: number;
   failed: number;
+  error?: string | null;
   note: string;
 };
 
@@ -188,7 +189,7 @@ export function Alerts() {
       setMessage(
         r.status === 'sent'
           ? `Aviso enviado a ntfy (${r.accepted_by_ntfy} aceptado). ${r.note}`
-          : `El envío falló (${r.failed} error). Revisa que haya un dispositivo registrado y que NTFY_TOPIC sea válido.`
+          : `El envío falló. ${r.error || 'Revisa que haya un dispositivo registrado y que NTFY_TOPIC sea válido.'} Puedes reintentarlo desde la bandeja.`
       );
       setSending(null);
       setSendReason('');
@@ -656,7 +657,7 @@ export function Alerts() {
                                 <span>Rechazar</span>
                               </button>
                             </div>
-                          ) : alt.status === 'approved' ? (
+                          ) : alt.status === 'approved' || alt.status === 'failed' ? (
                             <button
                               type="button"
                               className="btn btn-sm btn-primary"
@@ -672,7 +673,7 @@ export function Alerts() {
                               }
                             >
                               <Send size={13} />
-                              <span>Enviar</span>
+                              <span>{alt.status === 'failed' ? 'Reintentar' : 'Enviar'}</span>
                             </button>
                           ) : (
                             <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Auditado</span>

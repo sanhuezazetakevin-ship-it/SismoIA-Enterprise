@@ -1,12 +1,27 @@
 """Adaptador ntfy para avisos *informativos* con revisión humana previa.
 No constituye alerta temprana ni sistema de emergencias.
 """
+import base64
 import re
 from urllib.parse import urlsplit
 import httpx
 from app.config import settings
 
 TOPIC_PATTERN = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
+
+
+def header_text(value: str) -> str:
+    """Valor seguro para una cabecera HTTP.
+
+    httpx solo admite ASCII en cabeceras, así que un título como 'Observación sísmica' lanzaba
+    UnicodeEncodeError y el aviso quedaba en 'failed' sin salir nunca a ntfy. ntfy acepta UTF-8
+    codificado como RFC 2047 (=?UTF-8?B?...?=). También se colapsan saltos de línea para evitar
+    inyección de cabeceras.
+    """
+    value = " ".join(str(value).split())
+    if value.isascii():
+        return value
+    return "=?UTF-8?B?" + base64.b64encode(value.encode("utf-8")).decode("ascii") + "?="
 
 
 def validate_ntfy_configuration() -> None:
@@ -26,7 +41,7 @@ def send_informational_push(topic: str, title: str, body: str) -> str:
     if topic != settings.ntfy_topic:
         raise ValueError("Tema no autorizado")
     headers = {
-        "Title": title,
+        "Title": header_text(title),
         "Priority": str(settings.ntfy_priority),
         "Tags": "information_source",
         "Cache": "no",  # evitar retención de mensajes en el servidor público
